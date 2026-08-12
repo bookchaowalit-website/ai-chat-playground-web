@@ -15,36 +15,36 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Bookchaowalit - Bookchaowalit",
-  description: "Bookchaowalit by Bookchaowalit - A modern web application built with Next.js",
-  keywords: ['Bookchaowalit', 'Bookchaowalit', 'Next.js', 'React', 'TypeScript'],
+  title: "Chat Playground — Compare AI models side by side",
+  description: "Send one prompt to multiple AI models at once and compare their responses side by side, in a single unified interface.",
+  keywords: ['AI chat playground', 'compare AI models', 'GPT vs Claude vs Gemini', 'Next.js', 'AI SDK'],
   authors: [{ name: 'Bookchaowalit', url: 'https://bookchaowalit.com' }],
   creator: 'Bookchaowalit',
   publisher: 'Bookchaowalit',
-  metadataBase: new URL('https://bookchaowalit.com'),
+  metadataBase: new URL('https://chat-playground.bookchaowalit.com'),
   alternates: {
-    canonical: 'https://bookchaowalit.com',
+    canonical: 'https://chat-playground.bookchaowalit.com',
   },
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    url: 'https://bookchaowalit.com',
-    title: 'Bookchaowalit - Bookchaowalit',
-    description: 'Bookchaowalit by Bookchaowalit - A modern web application built with Next.js',
-    siteName: 'Bookchaowalit',
+    url: 'https://chat-playground.bookchaowalit.com',
+    title: 'Chat Playground — Compare AI models side by side',
+    description: 'Send one prompt to multiple AI models at once and compare their responses side by side.',
+    siteName: 'Chat Playground',
     images: [
       {
         url: '/og-image.png',
         width: 1200,
         height: 630,
-        alt: 'Bookchaowalit',
+        alt: 'Chat Playground',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Bookchaowalit - Bookchaowalit',
-    description: 'Bookchaowalit by Bookchaowalit - A modern web application built with Next.js',
+    title: 'Chat Playground — Compare AI models side by side',
+    description: 'Send one prompt to multiple AI models at once and compare their responses side by side.',
     images: ['/og-image.png'],
     creator: '@bookchaowalit',
   },
