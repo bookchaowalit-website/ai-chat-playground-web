@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 interface ModelStatus {
@@ -18,28 +19,31 @@ interface CompareResult {
   ms?: number;
 }
 
+const SAMPLE_PROMPT = "Explain one trade-off in designing a calm developer tool.";
+
 export default function Home() {
   const [models, setModels] = useState<ModelStatus[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [prompt, setPrompt] = useState("");
   const [results, setResults] = useState<CompareResult[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     fetch("/api/compare")
-      .then((r) => r.json())
+      .then((response) => response.json())
       .then((data: { models: ModelStatus[] }) => {
         setModels(data.models);
-        setSelected(new Set(data.models.filter((m) => m.configured).map((m) => m.id)));
+        setSelected(new Set(data.models.filter((model) => model.configured).map((model) => model.id)));
       })
-      .catch(() => setModels([]));
+      .catch(() => setError("The model catalogue could not be read. Refresh to try again."));
   }, []);
 
-  const anyConfigured = models.some((m) => m.configured);
+  const anyConfigured = models.some((model) => model.configured);
 
   const toggle = (id: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
+    setSelected((current) => {
+      const next = new Set(current);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
@@ -49,103 +53,104 @@ export default function Home() {
   const handleCompare = async () => {
     if (!prompt.trim() || selected.size === 0) return;
     setLoading(true);
+    setError("");
     setResults([]);
     try {
-      const res = await fetch("/api/compare", {
+      const response = await fetch("/api/compare", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt, modelIds: [...selected] }),
       });
-      const data = await res.json();
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "The comparison could not be completed.");
       setResults(data.results ?? []);
+    } catch (compareError) {
+      setError(compareError instanceof Error ? compareError.message : "The comparison could not be completed.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100">
-      <div className="mx-auto max-w-5xl px-4 py-10">
-        <header className="mb-6">
-          <h1 className="text-2xl font-semibold tracking-tight">Chat Playground</h1>
-          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            Send one prompt to multiple models at once and compare the responses side by side.
-          </p>
+    <main className="signal-room">
+      <span className="contract-mark" dangerouslySetInnerHTML={{ __html: "<!-- THESIS: one prompt, many model signals; FINISH: response lanes, provider states, no generic cards -->" }} />
+      <div className="signal-shell">
+        <header className="signal-topbar">
+          <Link className="signal-wordmark" href="/">MODEL / BENCH</Link>
+          <span className="signal-status"><i aria-hidden="true" /> {anyConfigured ? "Provider line open" : "Local comparison bench"}</span>
         </header>
 
-        {!anyConfigured && models.length > 0 && (
-          <div className="mb-6 rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 p-4 text-sm text-amber-900 dark:text-amber-200">
-            No AI provider is configured yet. Add <code className="font-mono">OPENAI_API_KEY</code>,{" "}
-            <code className="font-mono">ANTHROPIC_API_KEY</code>, or{" "}
-            <code className="font-mono">GOOGLE_GENERATIVE_AI_API_KEY</code> as an environment variable on this
-            deployment to enable live comparison. The UI below is fully wired — it just needs a key.
+        <section className="signal-intro">
+          <div>
+            <p className="signal-overline">one prompt / parallel readout</p>
+            <h1>Compare the same thought across the stack.</h1>
           </div>
-        )}
+          <p className="signal-deck">A small, honest bench for seeing how configured models interpret one prompt. The prompt stays here; each response gets its own lane.</p>
+        </section>
 
-        <section className="mb-6 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4">
-          <label className="block text-xs font-medium uppercase tracking-wide text-zinc-500 mb-2">
-            Prompt
+        <section className="bench" aria-labelledby="bench-heading">
+          <div className="bench-heading-row">
+            <div>
+              <span className="section-index">01</span>
+              <h2 id="bench-heading">Set the transmission</h2>
+            </div>
+            <span className="bench-note">{models.length ? models.length + " model channels" : "Reading channel list…"}</span>
+          </div>
+          <label className="prompt-field" htmlFor="prompt">
+            <span>Prompt</span>
+            <textarea id="prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Ask one clear question…" rows={5} />
           </label>
-          <textarea
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            rows={3}
-            placeholder="Ask something and see how each model answers it…"
-            className="w-full resize-none rounded border border-zinc-300 dark:border-zinc-700 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-zinc-400"
-          />
+          <div className="prompt-tools">
+            <button type="button" className="text-button" onClick={() => setPrompt(SAMPLE_PROMPT)}>Use a sample</button>
+            <span className="prompt-count">{prompt.length} characters</span>
+          </div>
 
-          <div className="mt-3 flex flex-wrap gap-2">
-            {models.map((m) => (
-              <label
-                key={m.id}
-                className={`inline-flex items-center gap-2 rounded border px-3 py-1.5 text-sm cursor-pointer ${
-                  !m.configured
-                    ? "opacity-50 cursor-not-allowed border-zinc-200 dark:border-zinc-800"
-                    : selected.has(m.id)
-                    ? "border-zinc-900 dark:border-zinc-100 bg-zinc-100 dark:bg-zinc-800"
-                    : "border-zinc-300 dark:border-zinc-700"
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={selected.has(m.id)}
-                  disabled={!m.configured}
-                  onChange={() => toggle(m.id)}
-                  className="sr-only"
-                />
-                {m.label}
-                {!m.configured && <span className="text-xs text-zinc-500">(no key)</span>}
+          <div className="channel-list" role="group" aria-label="Model channels">
+            {models.map((model, index) => (
+              <label className={"channel-row " + (selected.has(model.id) ? "is-selected " : "") + (!model.configured ? "is-muted" : "")} key={model.id}>
+                <input type="checkbox" checked={selected.has(model.id)} disabled={!model.configured} onChange={() => toggle(model.id)} />
+                <span className="channel-number">0{index + 1}</span>
+                <span className="channel-name">{model.label}</span>
+                <span className="channel-provider">{model.provider}</span>
+                <span className="channel-state">{model.configured ? (selected.has(model.id) ? "armed" : "available") : "needs key"}</span>
               </label>
             ))}
           </div>
 
-          <button
-            onClick={handleCompare}
-            disabled={!prompt.trim() || selected.size === 0 || loading}
-            className="mt-3 rounded bg-zinc-900 dark:bg-zinc-100 px-4 py-2 text-sm font-medium text-white dark:text-zinc-900 hover:opacity-90 disabled:opacity-50"
-          >
-            {loading ? "Comparing…" : "Compare"}
+          {!anyConfigured && models.length > 0 && (
+            <p className="bench-warning"><strong>No provider is patched in.</strong> Add a provider key to the deployment to enable live comparison. The bench remains usable as a product surface without pretending it has a live model.</p>
+          )}
+          {error && <p className="bench-error" role="alert">{error}</p>}
+          <button className="fire-button" type="button" onClick={handleCompare} disabled={!prompt.trim() || selected.size === 0 || loading}>
+            {loading ? "Reading channels…" : "Run comparison"}
           </button>
         </section>
 
-        {results.length > 0 && (
-          <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {results.map((r) => (
-              <div key={r.modelId} className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4">
-                <div className="mb-2 flex items-center justify-between">
-                  <h2 className="text-sm font-semibold">{r.label}</h2>
-                  {r.ms !== undefined && <span className="text-xs text-zinc-500">{r.ms}ms</span>}
-                </div>
-                {r.error ? (
-                  <p className="text-sm text-red-600 dark:text-red-400">{r.error}</p>
-                ) : (
-                  <p className="whitespace-pre-wrap text-sm leading-relaxed">{r.text}</p>
-                )}
-              </div>
-            ))}
-          </section>
-        )}
+        <section className="readout" aria-labelledby="readout-heading">
+          <div className="bench-heading-row">
+            <div>
+              <span className="section-index">02</span>
+              <h2 id="readout-heading">Read the response lanes</h2>
+            </div>
+            <span className="bench-note">{results.length ? results.length + " returned" : "Waiting for a transmission"}</span>
+          </div>
+          {results.length === 0 ? (
+            <div className="empty-readout"><span className="empty-line" /> <p>Run a comparison to place each model’s answer on the same bench.</p></div>
+          ) : (
+            <div className="lane-grid">
+              {results.map((result) => (
+                <article className={"response-lane " + (result.error ? "has-error" : "")} key={result.modelId}>
+                  <header><span>{result.label}</span><span>{result.ms !== undefined ? result.ms + "ms" : "not armed"}</span></header>
+                  <div className="lane-rule" />
+                  {result.error ? <p className="lane-error">{result.error}</p> : <p>{result.text || "No text returned."}</p>}
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <footer className="signal-footer">Model comparison is a reading aid, not a benchmark claim. Keys and responses belong to the deployment boundary.</footer>
       </div>
-    </div>
+    </main>
   );
 }
