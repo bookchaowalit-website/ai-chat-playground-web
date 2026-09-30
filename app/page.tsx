@@ -9,7 +9,16 @@ interface ModelStatus {
   label: string;
   provider: string;
   configured: boolean;
+  status: "ready" | "missing-key" | "missing-model" | "invalid-model";
+  problem: string | null;
 }
+
+const STATUS_LABEL: Record<ModelStatus["status"], string> = {
+  ready: "available",
+  "missing-key": "needs key",
+  "missing-model": "needs model id",
+  "invalid-model": "invalid model id",
+};
 
 interface CompareResult {
   modelId: string;
@@ -109,17 +118,18 @@ export default function Home() {
           <div className="channel-list" role="group" aria-label="Model channels">
             {models.map((model, index) => (
               <label className={"channel-row " + (selected.has(model.id) ? "is-selected " : "") + (!model.configured ? "is-muted" : "")} key={model.id}>
-                <input type="checkbox" checked={selected.has(model.id)} disabled={!model.configured} onChange={() => toggle(model.id)} />
+                <input type="checkbox" checked={selected.has(model.id)} disabled={!model.configured} onChange={() => toggle(model.id)} aria-describedby={model.problem ? "channel-problem-" + model.id : undefined} />
                 <span className="channel-number">0{index + 1}</span>
                 <span className="channel-name">{model.label}</span>
                 <span className="channel-provider">{model.provider}</span>
-                <span className="channel-state">{model.configured ? (selected.has(model.id) ? "armed" : "available") : "needs key"}</span>
+                <span className="channel-state">{model.configured ? (selected.has(model.id) ? "armed" : "available") : STATUS_LABEL[model.status] ?? "unavailable"}</span>
+                {model.problem && <span className="channel-problem" id={"channel-problem-" + model.id}>{model.problem}</span>}
               </label>
             ))}
           </div>
 
           {!anyConfigured && models.length > 0 && (
-            <p className="bench-warning"><strong>No provider is patched in.</strong> Add a provider key to the deployment to enable live comparison. The bench remains usable as a product surface without pretending it has a live model.</p>
+            <p className="bench-warning"><strong>No provider is patched in.</strong> Set a provider key and its model id (for example <code>ANTHROPIC_API_KEY</code> + <code>ANTHROPIC_MODEL_ID</code>) on the deployment to enable live comparison. The bench remains usable as a product surface without pretending it has a live model.</p>
           )}
           {error && <p className="bench-error" role="alert">{error}</p>}
           <button className="fire-button" type="button" onClick={handleCompare} disabled={!prompt.trim() || selected.size === 0 || loading}>

@@ -3,7 +3,7 @@ import { generateText } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { google } from "@ai-sdk/google";
-import { MODEL_CATALOG, isConfigured, type ModelDef } from "@/lib/models";
+import { MODEL_CATALOG, describeModel, isConfigured, type ModelDef } from "@/lib/models";
 import {
   MAX_OUTPUT_TOKENS,
   REQUEST_TIMEOUT_MS,
@@ -16,20 +16,20 @@ import {
 // Best-effort per-instance limit: 10 comparisons per client per minute.
 const allowRequest = createRateLimiter(10, 60_000);
 
-function resolveModel(def: ModelDef) {
+function resolveModel(def: ModelDef, modelId: string) {
   switch (def.provider) {
     case "openai":
-      return openai(def.id);
+      return openai(modelId);
     case "anthropic":
-      return anthropic(def.id);
+      return anthropic(modelId);
     case "google":
-      return google(def.id);
+      return google(modelId);
   }
 }
 
 export async function GET() {
   return NextResponse.json({
-    models: MODEL_CATALOG.map((m) => ({ id: m.id, label: m.label, provider: m.provider, configured: isConfigured(m) })),
+    models: MODEL_CATALOG.map(describeModel),
   });
 }
 
@@ -55,12 +55,12 @@ export async function POST(req: NextRequest) {
   const results = await Promise.all(
     selected.map(async (def) => {
       if (!isConfigured(def)) {
-        return { modelId: def.id, label: def.label, configured: false as const };
+        return { modelId: def.id, label: def.label, configured: false as const, error: def.problem ?? "This lane is not configured." };
       }
       const start = Date.now();
       try {
         const { text } = await generateText({
-          model: resolveModel(def),
+          model: resolveModel(def, def.modelId),
           prompt,
           maxOutputTokens: MAX_OUTPUT_TOKENS,
           maxRetries: 1,

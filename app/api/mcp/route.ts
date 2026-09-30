@@ -1,4 +1,4 @@
-import { MODEL_CATALOG, isConfigured } from "@/lib/models";
+import { MODEL_CATALOG, describeModel } from "@/lib/models";
 import { respondToMcpRequest } from "@/lib/mcp";
 import type { McpTool } from "@/lib/mcp";
 
@@ -9,15 +9,9 @@ const SERVER = { name: "bookchaowalit-chat-playground", version: "0.2.0" };
 const TOOLS: McpTool[] = [
   {
     name: "list_models",
-    description: "List the model channels on the bench and whether each provider key is configured on this deployment.",
+    description: "List the model channels on the bench the model id each deployment configured, and whether the lane is ready (with the reason when it is not).",
     inputSchema: { type: "object", properties: {} },
-    handler: () =>
-      MODEL_CATALOG.map((model) => ({
-        id: model.id,
-        label: model.label,
-        provider: model.provider,
-        configured: isConfigured(model),
-      })),
+    handler: () => MODEL_CATALOG.map(describeModel),
   },
 ];
 
