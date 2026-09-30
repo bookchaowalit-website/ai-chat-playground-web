@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { MAX_PROMPT_CHARS } from "@/lib/compare";
 
 interface ModelStatus {
   id: string;
@@ -98,11 +99,11 @@ export default function Home() {
           </div>
           <label className="prompt-field" htmlFor="prompt">
             <span>Prompt</span>
-            <textarea id="prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Ask one clear question…" rows={5} />
+            <textarea id="prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Ask one clear question…" rows={5} maxLength={MAX_PROMPT_CHARS} aria-describedby="prompt-count" />
           </label>
           <div className="prompt-tools">
             <button type="button" className="text-button" onClick={() => setPrompt(SAMPLE_PROMPT)}>Use a sample</button>
-            <span className="prompt-count">{prompt.length} characters</span>
+            <span className="prompt-count" id="prompt-count">{prompt.length} / {MAX_PROMPT_CHARS} characters</span>
           </div>
 
           <div className="channel-list" role="group" aria-label="Model channels">
@@ -126,13 +127,13 @@ export default function Home() {
           </button>
         </section>
 
-        <section className="readout" aria-labelledby="readout-heading">
+        <section className="readout" aria-labelledby="readout-heading" aria-busy={loading}>
           <div className="bench-heading-row">
             <div>
               <span className="section-index">02</span>
               <h2 id="readout-heading">Read the response lanes</h2>
             </div>
-            <span className="bench-note">{results.length ? results.length + " returned" : "Waiting for a transmission"}</span>
+            <span className="bench-note" aria-live="polite">{loading ? "Reading channels…" : results.length ? results.length + " returned" : "Waiting for a transmission"}</span>
           </div>
           {results.length === 0 ? (
             <div className="empty-readout"><span className="empty-line" /> <p>Run a comparison to place each model’s answer on the same bench.</p></div>
