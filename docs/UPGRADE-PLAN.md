@@ -51,3 +51,4 @@ validated, tested, and covered by CI.
     was sent, so trailing newlines could reject a valid prompt.
   - `summarizeError` could cut an emoji in half at the 300-unit limit, leaving
     a lone surrogate in the JSON error.
+- Security deps: `next` 16.1.6 -> 16.3.8 (and `eslint-config-next`) clears critical GHSA-2xp9-vwfh-vxw4 (Image Optimization RCE) plus bundled postcss/sharp highs; lockfile regenerated with same-major `npm audit fix`. `npm audit --omit=dev`: C1/H4/M1/L0 [nanoid:h,next:c,postcss:h,sharp:h,undici:h] -> C0/H0/M0/L0.
