@@ -41,3 +41,13 @@ validated, tested, and covered by CI.
 - a11y: keyboard focus ring on the (visually hidden) channel checkboxes; lane
   problems linked via `aria-describedby`.
 - `/more-projects` no longer links to this app itself.
+
+## Done in this pass (pass 3)
+- Edge-case pass on `lib/compare.ts` (regression tests in `tests/compare.test.ts`):
+  - A prompt of only zero-width characters / BOM passed `trim()` checks on the
+    page and the API and was sent to every provider (spending credit on an
+    empty question). `hasVisibleText` now guards both.
+  - The length limit was checked on the untrimmed prompt but the trimmed one
+    was sent, so trailing newlines could reject a valid prompt.
+  - `summarizeError` could cut an emoji in half at the 300-unit limit, leaving
+    a lone surrogate in the JSON error.

@@ -99,3 +99,23 @@ describe("model catalogue", () => {
     assert.deepEqual(Object.keys(described).sort(), ["configured", "id", "label", "modelId", "problem", "provider", "status"]);
   });
 });
+
+describe("prompt edge cases", () => {
+  it("rejects prompts made only of zero-width characters or a BOM", () => {
+    const result = validateCompareRequest({ prompt: "​﻿ ‍", modelIds: ["a"] }, known);
+    assert.deepEqual(result, { ok: false, error: "prompt is required" });
+  });
+
+  it("applies the length limit to the trimmed prompt that is actually sent", () => {
+    const padded = `  ${"x".repeat(MAX_PROMPT_CHARS)}\n\n`;
+    const result = validateCompareRequest({ prompt: padded, modelIds: ["a"] }, known);
+    assert.equal(result.ok, true);
+  });
+
+  it("never cuts an emoji in half when shortening provider errors", () => {
+    const message = `${"e".repeat(299)}😀 tail`;
+    const summary = summarizeError(new Error(message));
+    assert.equal(summary, `${"e".repeat(299)}…`);
+    assert.doesNotMatch(summary, /[\uD800-\uDBFF](?![\uDC00-\uDFFF])/);
+  });
+});

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { MAX_PROMPT_CHARS } from "@/lib/compare";
+import { MAX_PROMPT_CHARS, hasVisibleText } from "@/lib/compare";
 
 interface ModelStatus {
   id: string;
@@ -61,7 +61,7 @@ export default function Home() {
   };
 
   const handleCompare = async () => {
-    if (!prompt.trim() || selected.size === 0) return;
+    if (!hasVisibleText(prompt) || selected.size === 0) return;
     setLoading(true);
     setError("");
     setResults([]);
@@ -132,7 +132,7 @@ export default function Home() {
             <p className="bench-warning"><strong>No provider is patched in.</strong> Set a provider key and its model id (for example <code>ANTHROPIC_API_KEY</code> + <code>ANTHROPIC_MODEL_ID</code>) on the deployment to enable live comparison. The bench remains usable as a product surface without pretending it has a live model.</p>
           )}
           {error && <p className="bench-error" role="alert">{error}</p>}
-          <button className="fire-button" type="button" onClick={handleCompare} disabled={!prompt.trim() || selected.size === 0 || loading}>
+          <button className="fire-button" type="button" onClick={handleCompare} disabled={!hasVisibleText(prompt) || selected.size === 0 || loading}>
             {loading ? "Reading channels…" : "Run comparison"}
           </button>
         </section>
