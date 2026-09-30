@@ -40,4 +40,4 @@ validated, tested, and covered by CI.
   the API. Tests are offline (`tests/compare.test.ts`).
 - a11y: keyboard focus ring on the (visually hidden) channel checkboxes; lane
   problems linked via `aria-describedby`.
-
+- `/more-projects` no longer links to this app itself.

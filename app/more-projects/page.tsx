@@ -183,10 +183,6 @@ const CATEGORIES: ProjectCategory[] = [
       {
         "name": "Guestbook",
         "url": "https://bookchaowalit-guestbook-frontend.vercel.app"
-      },
-      {
-        "name": "Chat Playground",
-        "url": "https://bookchaowalit-chat-playground-frontend.vercel.app"
       }
     ]
   },
