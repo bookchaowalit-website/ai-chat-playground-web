@@ -12,7 +12,9 @@ validated, tested, and covered by CI.
   (required since pass 2 — lanes without one stay disabled).
 
 ### P1
-- Durable rate limiting (Vercel KV / Upstash) instead of per-instance memory.
+- Provision Upstash / Vercel KV in production (env vars in README) so the
+  per-client limit and daily cap are shared across instances; set
+  `COMPARE_DAILY_REQUEST_CAP` to the intended budget.
 - Stream responses per lane (`streamText`) so slow models do not block others.
 - Confirm canonical domain; set `NEXT_PUBLIC_SITE_URL`.
 
@@ -20,7 +22,20 @@ validated, tested, and covered by CI.
 - Copy-to-clipboard per lane and token/latency summary row.
 - Remove the `dangerouslySetInnerHTML` design-contract comment span.
 
-## Done in this pass
+## Done in this pass (pass 4)
+- `lib/rateLimit.ts`: `CounterStore` abstraction with an in-memory default and
+  an Upstash REST store (also Vercel KV env names; plain `fetch`, no new
+  dependency). `POST /api/compare` checks a per-client window (10/min) and a
+  deployment-wide daily cap (`COMPARE_DAILY_REQUEST_CAP`, default 500/UTC day)
+  after validation and before any provider call. Fails closed (503) on a
+  misconfigured cap or store error; 429 + `Retry-After` when exceeded.
+  Per-client rejections do not consume the daily budget.
+- Removed the old per-instance `createRateLimiter`. `tests/rateLimit.test.ts`
+  covers windows, daily cap/rollover, fail-closed paths, env selection and the
+  Upstash request shape with a fake `fetch`. Verified: 32 tests, lint,
+  typecheck, `next build`.
+
+## Done in pass 1
 - `lib/compare.ts`: request validation (prompt length, known/deduped model
   ids), rate limiter, error truncation; route adds output-token cap, timeout,
   retry cap, JSON parse guard. Unit-tested.
@@ -30,7 +45,7 @@ validated, tested, and covered by CI.
   create-next-app README; OG/Twitter metadata; robots/sitemap in-app.
 - a11y: prompt counter linked to textarea, live status for comparisons.
 
-## Done in this pass (pass 2)
+## Done in pass 2
 - Model ids are config-driven: removed the hard-coded (partly retired) defaults
   `claude-3-5-haiku-latest` / `gemini-1.5-flash` / `gpt-4o-mini`. Each lane needs
   `*_MODEL_ID` + key; unset, malformed, or known-retired ids yield a
@@ -42,7 +57,7 @@ validated, tested, and covered by CI.
   problems linked via `aria-describedby`.
 - `/more-projects` no longer links to this app itself.
 
-## Done in this pass (pass 3)
+## Done in pass 3
 - Edge-case pass on `lib/compare.ts` (regression tests in `tests/compare.test.ts`):
   - A prompt of only zero-width characters / BOM passed `trim()` checks on the
     page and the API and was sent to every provider (spending credit on an

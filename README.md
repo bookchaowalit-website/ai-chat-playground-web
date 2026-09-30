@@ -23,8 +23,15 @@ known-retired id (e.g. `claude-3-5-*`, `gemini-1.5-*`) marks the lane
 ## Limits on `POST /api/compare`
 - Prompt ≤ 4,000 characters, only known lane ids (`openai`, `anthropic`, `google`), duplicates removed.
 - ≤ 600 output tokens per model, 30 s timeout, 1 retry.
-- Best-effort in-memory rate limit: 10 comparisons per client per minute
-  (per server instance).
+- Rate limit: 10 comparisons per client per minute.
+- Daily cap for the whole deployment: `COMPARE_DAILY_REQUEST_CAP` requests per
+  UTC day (default 500). It fails closed: once reached (429 with
+  `Retry-After`), if the value is not a positive integer (503), or if the
+  counter store is unreachable (503), no provider is called.
+- Counters are per server instance by default. Set
+  `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` (or Vercel KV's
+  `KV_REST_API_URL` + `KV_REST_API_TOKEN`) to share them durably across
+  instances (`lib/rateLimit.ts`).
 - Provider error messages are truncated before being returned.
 
 `/api/mcp` exposes a read-only `list_models` tool (no prompt execution).

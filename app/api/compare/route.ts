@@ -8,13 +8,14 @@ import {
   MAX_OUTPUT_TOKENS,
   REQUEST_TIMEOUT_MS,
   clientKey,
-  createRateLimiter,
   summarizeError,
   validateCompareRequest,
 } from "@/lib/compare";
+import { checkCompareLimits, createCounterStore, parseDailyCap } from "@/lib/rateLimit";
 
-// Best-effort per-instance limit: 10 comparisons per client per minute.
-const allowRequest = createRateLimiter(10, 60_000);
+// Durable (Upstash/Vercel KV) when configured, otherwise per-instance memory.
+const counterStore = createCounterStore();
+const PER_CLIENT = { limit: 10, windowMs: 60_000 };
 
 function resolveModel(def: ModelDef, modelId: string) {
   switch (def.provider) {
@@ -34,10 +35,6 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  if (!allowRequest(clientKey(req.headers))) {
-    return NextResponse.json({ error: "Too many comparisons. Wait a minute and try again." }, { status: 429 });
-  }
-
   let body: unknown;
   try {
     body = await req.json();
@@ -48,6 +45,16 @@ export async function POST(req: NextRequest) {
   const validation = validateCompareRequest(body, MODEL_CATALOG.map((m) => m.id));
   if (!validation.ok) {
     return NextResponse.json({ error: validation.error }, { status: 400 });
+  }
+
+  // Counted only for requests that would reach a provider.
+  const limit = await checkCompareLimits(counterStore, clientKey(req.headers), {
+    perClient: PER_CLIENT,
+    dailyCap: parseDailyCap(process.env.COMPARE_DAILY_REQUEST_CAP),
+  });
+  if (!limit.ok) {
+    const headers = limit.retryAfterSeconds ? { "Retry-After": String(limit.retryAfterSeconds) } : undefined;
+    return NextResponse.json({ error: limit.error }, { status: limit.status, headers });
   }
   const { prompt, modelIds } = validation.value;
   const selected = MODEL_CATALOG.filter((m) => modelIds.includes(m.id));

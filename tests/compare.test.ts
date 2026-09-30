@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { MAX_PROMPT_CHARS, clientKey, createRateLimiter, summarizeError, validateCompareRequest } from "../lib/compare.ts";
+import { MAX_PROMPT_CHARS, clientKey, summarizeError, validateCompareRequest } from "../lib/compare.ts";
 import { buildCatalog, describeModel, isConfigured, modelIdProblem } from "../lib/models.ts";
 
 const known = ["a", "b"];
@@ -24,15 +24,6 @@ describe("validateCompareRequest", () => {
 });
 
 describe("limits", () => {
-  it("rate-limits per key inside a window", () => {
-    const allow = createRateLimiter(2, 1000);
-    assert.equal(allow("ip", 0), true);
-    assert.equal(allow("ip", 1), true);
-    assert.equal(allow("ip", 2), false);
-    assert.equal(allow("other", 2), true);
-    assert.equal(allow("ip", 1001), true);
-  });
-
   it("truncates long provider errors", () => {
     assert.ok(summarizeError(new Error("e".repeat(1000))).length <= 301);
     assert.equal(summarizeError("x"), "Request failed");

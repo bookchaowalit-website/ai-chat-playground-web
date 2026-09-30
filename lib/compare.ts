@@ -44,25 +44,6 @@ export function summarizeError(error: unknown): string {
   return `${message.slice(0, end)}…`;
 }
 
-/**
- * Fixed-window rate limiter kept in memory. On serverless platforms this is
- * per-instance and best-effort; it still stops a single client hammering one
- * warm instance and spending provider credit.
- */
-export function createRateLimiter(limit: number, windowMs: number) {
-  const hits = new Map<string, { count: number; resetAt: number }>();
-  return function allow(key: string, now = Date.now()): boolean {
-    const entry = hits.get(key);
-    if (!entry || entry.resetAt <= now) {
-      if (hits.size > 5000) hits.clear();
-      hits.set(key, { count: 1, resetAt: now + windowMs });
-      return true;
-    }
-    entry.count += 1;
-    return entry.count <= limit;
-  };
-}
-
 export function clientKey(headers: Headers): string {
   return headers.get("x-forwarded-for")?.split(",")[0]?.trim() || headers.get("x-real-ip") || "anonymous";
 }
