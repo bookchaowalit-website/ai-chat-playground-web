@@ -1,75 +1,20 @@
-import { NextRequest } from 'next/server';
+import { MODEL_CATALOG, describeModel } from "@/lib/models";
+import { respondToMcpRequest } from "@/lib/mcp";
+import type { McpTool } from "@/lib/mcp";
 
-export const runtime = 'edge';
+const SERVER = { name: "bookchaowalit-chat-playground", version: "0.2.0" };
 
-interface MCPRequest {
-  jsonrpc: '2.0';
-  id: number | string;
-  method: string;
-  params?: any;
+// Read-only on purpose: running prompts through MCP would bypass the page's
+// limits and spend provider credit, so only the catalogue is exposed.
+const TOOLS: McpTool[] = [
+  {
+    name: "list_models",
+    description: "List the model channels on the bench the model id each deployment configured, and whether the lane is ready (with the reason when it is not).",
+    inputSchema: { type: "object", properties: {} },
+    handler: () => MODEL_CATALOG.map(describeModel),
+  },
+];
+
+export async function POST(request: Request) {
+  return respondToMcpRequest(request, SERVER, TOOLS);
 }
-
-interface MCPResponse {
-  jsonrpc: '2.0';
-  id: number | string;
-  result?: any;
-  error?: {
-    code: number;
-    message: string;
-  };
-}
-
-async function getData() {
-  return { message: 'Sample data' };
-}
-
-export async function POST(request: NextRequest) {
-  let requestId: number | string = 0;
-
-  try {
-    const body: MCPRequest = await request.json();
-    requestId = body.id;
-    const { method, params, id } = body;
-
-    let result: any = {};
-
-    switch (method) {
-      case 'initialize':
-        result = {
-          protocolVersion: '2024-11-05',
-          capabilities: { tools: {} },
-          serverInfo: { name: 'MCP Server', version: '1.0.0' }
-        };
-        break;
-
-      case 'tools/list':
-        result = {
-          tools: [
-            {
-              name: 'get_data',
-              description: 'Get sample data',
-              inputSchema: { type: 'object', properties: {} }
-            }
-          ]
-        };
-        break;
-
-      case 'tools/call':
-        result = await getData();
-        break;
-
-      default:
-        throw new Error(`Unknown method: ${method}`);
-    }
-
-    return Response.json({ jsonrpc: '2.0', id, result });
-
-  } catch (error) {
-    return Response.json({
-      jsonrpc: '2.0',
-      id: requestId,
-      error: { code: -32603, message: error instanceof Error ? error.message : 'Internal error' }
-    }, { status: 500 });
-  }
-}
-

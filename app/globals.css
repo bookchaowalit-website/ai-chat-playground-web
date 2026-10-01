@@ -40,6 +40,8 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 3px
 .channel-name { font-size: 18px; font-weight: 650; }
 .channel-state { color: var(--signal-dark); text-align: right; text-transform: uppercase; letter-spacing: .07em; }
 .channel-row.is-muted { cursor: not-allowed; opacity: .52; }
+.channel-problem { grid-column: 2 / -1; font-size: 12px; line-height: 1.4; color: var(--signal-dark); }
+.channel-row:focus-within { outline: 2px solid var(--signal-dark); outline-offset: -2px; }
 .bench-warning, .bench-error { margin: 22px 0 0; border: 1px solid #b69172; background: #e6d8c6; padding: 13px 16px; color: #543f2c; font-size: 13px; line-height: 1.55; }
 .bench-error { border-color: #a02e22; background: #ead4ce; color: #701e18; }
 .fire-button { margin-top: 22px; border: 0; border-radius: 0; background: var(--ink); color: var(--paper); padding: 13px 19px; cursor: pointer; font-weight: 700; transition: background .2s ease, transform .2s ease; }
