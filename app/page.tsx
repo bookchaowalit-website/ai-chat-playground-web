@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { MAX_PROMPT_CHARS, hasVisibleText } from "@/lib/compare";
 
 interface ModelStatus {
@@ -20,10 +20,36 @@ const STATUS_LABEL: Record<ModelStatus["status"], string> = {
   "invalid-model": "invalid model id",
 };
 
+type AccessMode = "live" | "demo";
+
+const ACCESS_KEY_STORAGE = "model-bench-access-key";
+
+function readStoredKey(): string {
+  try {
+    return sessionStorage.getItem(ACCESS_KEY_STORAGE) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function storeKey(value: string) {
+  try {
+    if (value) sessionStorage.setItem(ACCESS_KEY_STORAGE, value);
+    else sessionStorage.removeItem(ACCESS_KEY_STORAGE);
+  } catch {
+    // Private mode or blocked storage: the key just is not remembered.
+  }
+}
+
+function authHeaders(accessKey: string): Record<string, string> {
+  return accessKey ? { Authorization: "Bearer " + accessKey } : {};
+}
+
 interface CompareResult {
   modelId: string;
   label: string;
   configured: boolean;
+  demo?: boolean;
   text?: string;
   error?: string;
   ms?: number;
@@ -38,17 +64,58 @@ export default function Home() {
   const [results, setResults] = useState<CompareResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [mode, setMode] = useState<AccessMode>("demo");
+  const [accessKey, setAccessKey] = useState("");
+  const [keyDraft, setKeyDraft] = useState("");
+  const [keyNote, setKeyNote] = useState("");
 
-  useEffect(() => {
-    fetch("/api/compare")
-      .then((response) => response.json())
-      .then((data: { models: ModelStatus[] }) => {
-        setModels(data.models);
-        setSelected(new Set(data.models.filter((model) => model.configured).map((model) => model.id)));
-      })
-      .catch(() => setError("The model catalogue could not be read. Refresh to try again."));
+  const loadCatalog = useCallback(async (key: string) => {
+    try {
+      const response = await fetch("/api/compare", { headers: authHeaders(key), cache: "no-store" });
+      const data: { mode?: AccessMode; models: ModelStatus[] } = await response.json();
+      const nextMode = data.mode === "live" ? "live" : "demo";
+      setModels(data.models);
+      setMode(nextMode);
+      // Demo lanes never call a provider, so every lane can be armed.
+      setSelected(new Set(data.models.filter((model) => nextMode === "demo" || model.configured).map((model) => model.id)));
+      return nextMode;
+    } catch {
+      setError("The model catalogue could not be read. Refresh to try again.");
+      return "demo" as const;
+    }
   }, []);
 
+  useEffect(() => {
+    const stored = readStoredKey();
+    setAccessKey(stored);
+    loadCatalog(stored);
+  }, [loadCatalog]);
+
+  const unlock = async (event: FormEvent) => {
+    event.preventDefault();
+    const key = keyDraft.trim();
+    if (!key) return;
+    const nextMode = await loadCatalog(key);
+    if (nextMode === "live") {
+      // Demo lanes from before the unlock must not read as live answers.
+      setResults([]);
+      setAccessKey(key);
+      storeKey(key);
+      setKeyDraft("");
+      setKeyNote("");
+    } else {
+      setKeyNote("That key was not accepted. The bench stays in demo mode.");
+    }
+  };
+
+  const lock = () => {
+    setAccessKey("");
+    storeKey("");
+    setResults([]);
+    loadCatalog("");
+  };
+
+  const isDemo = mode === "demo";
   const anyConfigured = models.some((model) => model.configured);
 
   const toggle = (id: string) => {
@@ -68,7 +135,7 @@ export default function Home() {
     try {
       const response = await fetch("/api/compare", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders(accessKey) },
         body: JSON.stringify({ prompt, modelIds: [...selected] }),
       });
       const data = await response.json();
@@ -87,7 +154,7 @@ export default function Home() {
       <div className="signal-shell">
         <header className="signal-topbar">
           <Link className="signal-wordmark" href="/">MODEL / BENCH</Link>
-          <span className="signal-status"><i aria-hidden="true" /> {anyConfigured ? "Provider line open" : "Local comparison bench"}</span>
+          <span className="signal-status"><i aria-hidden="true" /> {isDemo ? "Demo bench" : anyConfigured ? "Provider line open" : "Local comparison bench"}</span>
         </header>
 
         <section className="signal-intro">
@@ -117,18 +184,31 @@ export default function Home() {
 
           <div className="channel-list" role="group" aria-label="Model channels">
             {models.map((model, index) => (
-              <label className={"channel-row " + (selected.has(model.id) ? "is-selected " : "") + (!model.configured ? "is-muted" : "")} key={model.id}>
-                <input type="checkbox" checked={selected.has(model.id)} disabled={!model.configured} onChange={() => toggle(model.id)} aria-describedby={model.problem ? "channel-problem-" + model.id : undefined} />
+              <label className={"channel-row " + (selected.has(model.id) ? "is-selected " : "") + (!isDemo && !model.configured ? "is-muted" : "")} key={model.id}>
+                <input type="checkbox" checked={selected.has(model.id)} disabled={!isDemo && !model.configured} onChange={() => toggle(model.id)} aria-describedby={model.problem ? "channel-problem-" + model.id : undefined} />
                 <span className="channel-number">0{index + 1}</span>
                 <span className="channel-name">{model.label}</span>
                 <span className="channel-provider">{model.provider}</span>
-                <span className="channel-state">{model.configured ? (selected.has(model.id) ? "armed" : "available") : STATUS_LABEL[model.status] ?? "unavailable"}</span>
-                {model.problem && <span className="channel-problem" id={"channel-problem-" + model.id}>{model.problem}</span>}
+                <span className="channel-state">{isDemo ? (selected.has(model.id) ? "demo armed" : "demo") : model.configured ? (selected.has(model.id) ? "armed" : "available") : STATUS_LABEL[model.status] ?? "unavailable"}</span>
+                {!isDemo && model.problem && <span className="channel-problem" id={"channel-problem-" + model.id}>{model.problem}</span>}
               </label>
             ))}
           </div>
 
-          {!anyConfigured && models.length > 0 && (
+          {isDemo ? (
+            <div className="access-panel">
+              <p className="bench-warning"><strong>Demo mode.</strong> Lanes return labelled sample text and no model is called. Live comparisons spend provider credit, so they need the bench access key.</p>
+              <form className="access-form" onSubmit={unlock}>
+                <label htmlFor="access-key">Bench access key</label>
+                <input id="access-key" type="password" autoComplete="off" value={keyDraft} onChange={(event) => setKeyDraft(event.target.value)} placeholder="Paste the key to unlock live lanes" />
+                <button type="submit" className="text-button" disabled={!keyDraft.trim()}>Unlock</button>
+              </form>
+              {keyNote && <p className="access-note" role="status">{keyNote}</p>}
+            </div>
+          ) : (
+            <p className="access-live">Live lanes unlocked for this tab. <button type="button" className="text-button" onClick={lock}>Lock bench</button></p>
+          )}
+          {!isDemo && !anyConfigured && models.length > 0 && (
             <p className="bench-warning"><strong>No provider is patched in.</strong> Set a provider key and its model id (for example <code>ANTHROPIC_API_KEY</code> + <code>ANTHROPIC_MODEL_ID</code>) on the deployment to enable live comparison. The bench remains usable as a product surface without pretending it has a live model.</p>
           )}
           {error && <p className="bench-error" role="alert">{error}</p>}
@@ -151,7 +231,7 @@ export default function Home() {
             <div className="lane-grid">
               {results.map((result) => (
                 <article className={"response-lane " + (result.error ? "has-error" : "")} key={result.modelId}>
-                  <header><span>{result.label}</span><span>{result.ms !== undefined ? result.ms + "ms" : "not armed"}</span></header>
+                  <header><span>{result.label}</span><span>{result.demo ? "demo" : result.ms !== undefined ? result.ms + "ms" : "not armed"}</span></header>
                   <div className="lane-rule" />
                   {result.error ? <p className="lane-error">{result.error}</p> : <p>{result.text || "No text returned."}</p>}
                 </article>

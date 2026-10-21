@@ -17,6 +17,16 @@ known-retired id (e.g. `claude-3-5-*`, `gemini-1.5-*`) marks the lane
 "needs model id" / "invalid model id" with the reason, and it is never called.
 `GET /api/compare` and the MCP `list_models` tool report each lane's status.
 
+### Access gate (demo vs live)
+
+Provider keys are spent only for callers that send
+`Authorization: Bearer <COMPARE_ACCESS_TOKEN>` (the page has a "Bench access
+key" field; the key is kept in `sessionStorage` for that tab only). Everyone
+else gets **demo mode**: every lane returns labelled sample text and no
+provider is called. If `COMPARE_ACCESS_TOKEN` is unset or shorter than 24
+characters, live mode is off for everyone (fail closed). Generate one with
+`openssl rand -base64 32` and keep it in Infisical.
+
 `NEXT_PUBLIC_SITE_URL` overrides the canonical origin used in metadata,
 `robots.txt`, and `sitemap.xml`.
 

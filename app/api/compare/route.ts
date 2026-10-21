@@ -3,19 +3,13 @@ import { generateText } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { google } from "@ai-sdk/google";
-import { MODEL_CATALOG, describeModel, isConfigured, type ModelDef } from "@/lib/models";
-import {
-  MAX_OUTPUT_TOKENS,
-  REQUEST_TIMEOUT_MS,
-  clientKey,
-  summarizeError,
-  validateCompareRequest,
-} from "@/lib/compare";
-import { checkCompareLimits, createCounterStore, parseDailyCap } from "@/lib/rateLimit";
+import { MODEL_CATALOG, type ModelDef } from "@/lib/models";
+import { MAX_OUTPUT_TOKENS, REQUEST_TIMEOUT_MS } from "@/lib/compare";
+import { catalogResponse, handleCompare } from "@/lib/compareHandler";
+import { createCounterStore } from "@/lib/rateLimit";
 
 // Durable (Upstash/Vercel KV) when configured, otherwise per-instance memory.
 const counterStore = createCounterStore();
-const PER_CLIENT = { limit: 10, windowMs: 60_000 };
 
 function resolveModel(def: ModelDef, modelId: string) {
   switch (def.provider) {
@@ -28,9 +22,20 @@ function resolveModel(def: ModelDef, modelId: string) {
   }
 }
 
-export async function GET() {
-  return NextResponse.json({
-    models: MODEL_CATALOG.map(describeModel),
+async function callModel(def: ModelDef & { modelId: string }, prompt: string) {
+  const { text } = await generateText({
+    model: resolveModel(def, def.modelId),
+    prompt,
+    maxOutputTokens: MAX_OUTPUT_TOKENS,
+    maxRetries: 1,
+    abortSignal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  return text;
+}
+
+export async function GET(req: NextRequest) {
+  return NextResponse.json(catalogResponse(req.headers, process.env, MODEL_CATALOG), {
+    headers: { "Cache-Control": "no-store" },
   });
 }
 
@@ -42,49 +47,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Request body must be valid JSON." }, { status: 400 });
   }
 
-  const validation = validateCompareRequest(body, MODEL_CATALOG.map((m) => m.id));
-  if (!validation.ok) {
-    return NextResponse.json({ error: validation.error }, { status: 400 });
-  }
-
-  // Counted only for requests that would reach a provider.
-  const limit = await checkCompareLimits(counterStore, clientKey(req.headers), {
-    perClient: PER_CLIENT,
-    dailyCap: parseDailyCap(process.env.COMPARE_DAILY_REQUEST_CAP),
+  // Provider keys are spent only for callers with COMPARE_ACCESS_TOKEN;
+  // everyone else gets demo lanes (see lib/access.ts).
+  const res = await handleCompare(body, req.headers, {
+    env: process.env,
+    catalog: MODEL_CATALOG,
+    store: counterStore,
+    callModel,
   });
-  if (!limit.ok) {
-    const headers = limit.retryAfterSeconds ? { "Retry-After": String(limit.retryAfterSeconds) } : undefined;
-    return NextResponse.json({ error: limit.error }, { status: limit.status, headers });
-  }
-  const { prompt, modelIds } = validation.value;
-  const selected = MODEL_CATALOG.filter((m) => modelIds.includes(m.id));
-
-  const results = await Promise.all(
-    selected.map(async (def) => {
-      if (!isConfigured(def)) {
-        return { modelId: def.id, label: def.label, configured: false as const, error: def.problem ?? "This lane is not configured." };
-      }
-      const start = Date.now();
-      try {
-        const { text } = await generateText({
-          model: resolveModel(def, def.modelId),
-          prompt,
-          maxOutputTokens: MAX_OUTPUT_TOKENS,
-          maxRetries: 1,
-          abortSignal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-        });
-        return { modelId: def.id, label: def.label, configured: true as const, text, ms: Date.now() - start };
-      } catch (err) {
-        return {
-          modelId: def.id,
-          label: def.label,
-          configured: true as const,
-          error: summarizeError(err),
-          ms: Date.now() - start,
-        };
-      }
-    })
-  );
-
-  return NextResponse.json({ results });
+  return NextResponse.json(res.body, { status: res.status, headers: res.headers });
 }

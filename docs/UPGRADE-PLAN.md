@@ -8,6 +8,8 @@ validated, tested, and covered by CI.
 ## Backlog
 
 ### P0
+- Live lanes need `COMPARE_ACCESS_TOKEN` (≥ 24 chars) in Vercel; without it the
+  bench stays in demo mode for everyone (access gate added 2026-10-21).
 - Set `OPENAI_MODEL_ID` / `ANTHROPIC_MODEL_ID` / `GOOGLE_MODEL_ID` in Vercel
   (required since pass 2 — lanes without one stay disabled).
 
