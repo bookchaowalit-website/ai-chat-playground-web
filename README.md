@@ -56,9 +56,18 @@ npm run dev
 ```bash
 npm run lint
 npm run typecheck
-npm test
+npm test           # Vitest: access gate, compare validation + handler, rate limit, MCP, routes, page render, Sentry
 npm run build
 ```
+
+CI (`.github/workflows/ci.yml`) runs the shared Node workflow (with a line-coverage gate) and the shared security
+scan on every push and PR to `main`. No test calls a real provider.
+
+## Error reporting
+
+`lib/sentry.ts` + `instrumentation*.ts` send front-end and server errors to Sentry when `NEXT_PUBLIC_SENTRY_DSN` is
+set: errors only, no tracing or replay, and request data (prompts, the access key header), user, breadcrumbs, extra
+context and stack frame variables are stripped before sending.
 
 ## Related
 - **Mobile App:** [bookchaowalit-chat-playground-mobile](https://github.com/bookchaowalit-mobile/bookchaowalit-chat-playground-mobile)
