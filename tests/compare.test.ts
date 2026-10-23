@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it } from "vitest";
 import { MAX_PROMPT_CHARS, clientKey, summarizeError, validateCompareRequest } from "../lib/compare.ts";
 import { buildCatalog, describeModel, isConfigured, modelIdProblem } from "../lib/models.ts";
 
