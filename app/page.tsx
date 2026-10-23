@@ -65,7 +65,8 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [mode, setMode] = useState<AccessMode>("demo");
-  const [accessKey, setAccessKey] = useState("");
+  // Lazy read: the key is only sent in request headers, never rendered, so SSR "" cannot mismatch.
+  const [accessKey, setAccessKey] = useState(readStoredKey);
   const [keyDraft, setKeyDraft] = useState("");
   const [keyNote, setKeyNote] = useState("");
 
@@ -86,9 +87,8 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const stored = readStoredKey();
-    setAccessKey(stored);
-    loadCatalog(stored);
+    // Load after mount; state is only set once the catalogue request resolves.
+    void Promise.resolve(readStoredKey()).then(loadCatalog);
   }, [loadCatalog]);
 
   const unlock = async (event: FormEvent) => {
