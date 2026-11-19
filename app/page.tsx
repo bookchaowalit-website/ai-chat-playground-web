@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { AppFoot, AppTop, Pill, type Tone } from "@/components/app-shell";
 import { MAX_PROMPT_CHARS, hasVisibleText } from "@/lib/compare";
 
 interface ModelStatus {
@@ -14,10 +14,10 @@ interface ModelStatus {
 }
 
 const STATUS_LABEL: Record<ModelStatus["status"], string> = {
-  ready: "available",
-  "missing-key": "needs key",
-  "missing-model": "needs model id",
-  "invalid-model": "invalid model id",
+  ready: "Available",
+  "missing-key": "Needs key",
+  "missing-model": "Needs model id",
+  "invalid-model": "Invalid model id",
 };
 
 type AccessMode = "live" | "demo";
@@ -56,6 +56,13 @@ interface CompareResult {
 }
 
 const SAMPLE_PROMPT = "Explain one trade-off in designing a calm developer tool.";
+const SOURCE = "https://github.com/bookchaowalit-website/ai-chat-playground-web";
+
+function resultTag(result: CompareResult): { tone: Tone; text: string } {
+  if (result.error) return { tone: "red", text: "Error" };
+  if (result.demo) return { tone: "amber", text: "Demo, no model called" };
+  return { tone: "green", text: result.ms !== undefined ? result.ms + " ms" : "Answered" };
+}
 
 export default function Home() {
   const [models, setModels] = useState<ModelStatus[]>([]);
@@ -69,6 +76,7 @@ export default function Home() {
   const [accessKey, setAccessKey] = useState(readStoredKey);
   const [keyDraft, setKeyDraft] = useState("");
   const [keyNote, setKeyNote] = useState("");
+  const promptRef = useRef<HTMLTextAreaElement>(null);
 
   const loadCatalog = useCallback(async (key: string) => {
     try {
@@ -81,7 +89,7 @@ export default function Home() {
       setSelected(new Set(data.models.filter((model) => nextMode === "demo" || model.configured).map((model) => model.id)));
       return nextMode;
     } catch {
-      setError("The model catalogue could not be read. Refresh to try again.");
+      setError("The model list could not be read. Refresh to try again.");
       return "demo" as const;
     }
   }, []);
@@ -112,7 +120,7 @@ export default function Home() {
     setAccessKey("");
     storeKey("");
     setResults([]);
-    loadCatalog("");
+    void loadCatalog("");
   };
 
   const isDemo = mode === "demo";
@@ -127,8 +135,8 @@ export default function Home() {
     });
   };
 
-  const handleCompare = async () => {
-    if (!hasVisibleText(prompt) || selected.size === 0) return;
+  const runCompare = async (text: string) => {
+    if (!hasVisibleText(text) || selected.size === 0) return;
     setLoading(true);
     setError("");
     setResults([]);
@@ -136,7 +144,7 @@ export default function Home() {
       const response = await fetch("/api/compare", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders(accessKey) },
-        body: JSON.stringify({ prompt, modelIds: [...selected] }),
+        body: JSON.stringify({ prompt: text, modelIds: [...selected] }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "The comparison could not be completed.");
@@ -148,100 +156,133 @@ export default function Home() {
     }
   };
 
+  const pickSample = () => {
+    setPrompt(SAMPLE_PROMPT);
+    promptRef.current?.focus();
+  };
+
+  const runSample = () => {
+    setPrompt(SAMPLE_PROMPT);
+    void runCompare(SAMPLE_PROMPT);
+  };
+
+  const laneState = (model: ModelStatus): { tone: Tone; text: string } => {
+    const on = selected.has(model.id);
+    if (isDemo) return { tone: on ? "amber" : "grey", text: on ? "Demo, selected" : "Demo" };
+    if (!model.configured) return { tone: "grey", text: STATUS_LABEL[model.status] ?? "Unavailable" };
+    return { tone: on ? "green" : "grey", text: on ? "Selected" : "Available" };
+  };
+
+  const canRun = hasVisibleText(prompt) && selected.size > 0 && !loading;
+
   return (
-    <main className="signal-room">
-      <span className="contract-mark" dangerouslySetInnerHTML={{ __html: "<!-- THESIS: one prompt, many model signals; FINISH: response lanes, provider states, no generic cards -->" }} />
-      <div className="signal-shell">
-        <header className="signal-topbar">
-          <Link className="signal-wordmark" href="/">MODEL / BENCH</Link>
-          <span className="signal-status"><i aria-hidden="true" /> {isDemo ? "Demo bench" : anyConfigured ? "Provider line open" : "Local comparison bench"}</span>
-        </header>
+    <div className="as">
+      <a className="as-skip" href="#bench">Skip to the bench</a>
+      <AppTop name="Model Bench" tagline="Compare AI responses" />
 
-        <section className="signal-intro">
-          <div>
-            <p className="signal-overline">one prompt / parallel readout</p>
-            <h1>Compare the same thought across the stack.</h1>
-          </div>
-          <p className="signal-deck">A small, honest bench for seeing how configured models interpret one prompt. The prompt stays here; each response gets its own lane.</p>
-        </section>
+      <main className="as-page" id="bench" tabIndex={-1}>
+        <div className="as-intro">
+          <p className="as-eyebrow">One prompt, parallel answers</p>
+          <h1>Compare the same thought across the stack.</h1>
+          <p>A small, honest bench for seeing how configured models read one prompt. Each answer gets its own lane.</p>
+          <Pill tone={isDemo ? "amber" : anyConfigured ? "green" : "grey"}>{isDemo ? "Demo mode" : anyConfigured ? "Live lanes open" : "No provider configured"}</Pill>
+        </div>
 
-        <section className="bench" aria-labelledby="bench-heading">
-          <div className="bench-heading-row">
-            <div>
-              <span className="section-index">01</span>
-              <h2 id="bench-heading">Set the transmission</h2>
-            </div>
-            <span className="bench-note">{models.length ? models.length + " model channels" : "Reading channel list…"}</span>
-          </div>
-          <label className="prompt-field" htmlFor="prompt">
-            <span>Prompt</span>
-            <textarea id="prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Ask one clear question…" rows={5} maxLength={MAX_PROMPT_CHARS} aria-describedby="prompt-count" />
+        <section className="as-composer mb-panel" aria-labelledby="bench-heading">
+          <h2 id="bench-heading">Set the prompt</h2>
+          <label className="as-field" htmlFor="prompt">
+            Prompt
+            <textarea ref={promptRef} id="prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Ask one clear question…" rows={5} maxLength={MAX_PROMPT_CHARS} aria-describedby="prompt-count" />
           </label>
-          <div className="prompt-tools">
-            <button type="button" className="text-button" onClick={() => setPrompt(SAMPLE_PROMPT)}>Use a sample</button>
-            <span className="prompt-count" id="prompt-count">{prompt.length} / {MAX_PROMPT_CHARS} characters</span>
+          <div className="as-composer-foot">
+            <button type="button" className="as-plain" onClick={pickSample}>Use a sample</button>
+            <span className="mb-count" id="prompt-count">{prompt.length} / {MAX_PROMPT_CHARS} characters</span>
           </div>
 
-          <div className="channel-list" role="group" aria-label="Model channels">
-            {models.map((model, index) => (
-              <label className={"channel-row " + (selected.has(model.id) ? "is-selected " : "") + (!isDemo && !model.configured ? "is-muted" : "")} key={model.id}>
-                <input type="checkbox" checked={selected.has(model.id)} disabled={!isDemo && !model.configured} onChange={() => toggle(model.id)} aria-describedby={model.problem ? "channel-problem-" + model.id : undefined} />
-                <span className="channel-number">0{index + 1}</span>
-                <span className="channel-name">{model.label}</span>
-                <span className="channel-provider">{model.provider}</span>
-                <span className="channel-state">{isDemo ? (selected.has(model.id) ? "demo armed" : "demo") : model.configured ? (selected.has(model.id) ? "armed" : "available") : STATUS_LABEL[model.status] ?? "unavailable"}</span>
-                {!isDemo && model.problem && <span className="channel-problem" id={"channel-problem-" + model.id}>{model.problem}</span>}
-              </label>
-            ))}
-          </div>
+          <fieldset className="mb-lanes">
+            <legend>Model lanes {models.length ? <span className="mb-count">({models.length})</span> : null}</legend>
+            {models.length === 0 ? (
+              <p className="mb-count">Reading the model list…</p>
+            ) : (
+              <ul className="as-list">
+                {models.map((model) => {
+                  const off = !isDemo && !model.configured;
+                  const state = laneState(model);
+                  return (
+                    <li className="as-row as-row-step" key={model.id} data-off={off ? "true" : undefined}>
+                      <label className="as-step-label">
+                        <span className="as-check">
+                          <input type="checkbox" checked={selected.has(model.id)} disabled={off} onChange={() => toggle(model.id)} aria-describedby={!isDemo && model.problem ? "lane-problem-" + model.id : undefined} />
+                          <span />
+                        </span>
+                        <span className="mb-lane-text">
+                          <strong>{model.label}</strong>
+                          <small>{model.provider}</small>
+                          {!isDemo && model.problem ? <small id={"lane-problem-" + model.id}>{model.problem}</small> : null}
+                          <Pill tone={state.tone}>{state.text}</Pill>
+                        </span>
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </fieldset>
 
           {isDemo ? (
-            <div className="access-panel">
-              <p className="bench-warning"><strong>Demo mode.</strong> Lanes return labelled sample text and no model is called. Live comparisons spend provider credit, so they need the bench access key.</p>
-              <form className="access-form" onSubmit={unlock}>
-                <label htmlFor="access-key">Bench access key</label>
-                <input id="access-key" type="password" autoComplete="off" value={keyDraft} onChange={(event) => setKeyDraft(event.target.value)} placeholder="Paste the key to unlock live lanes" />
-                <button type="submit" className="text-button" disabled={!keyDraft.trim()}>Unlock</button>
+            <>
+              <p className="mb-callout"><strong>Demo mode.</strong> Lanes return labelled sample text and no model is called. Live comparisons spend provider credit, so they need the bench access key.</p>
+              <form className="mb-key" onSubmit={unlock}>
+                <label className="as-field" htmlFor="access-key">
+                  Bench access key
+                  <input id="access-key" type="password" autoComplete="off" value={keyDraft} onChange={(event) => setKeyDraft(event.target.value)} placeholder="Paste the key to unlock live lanes" />
+                </label>
+                <button type="submit" className="as-plain" disabled={!keyDraft.trim()}>Unlock</button>
               </form>
-              {keyNote && <p className="access-note" role="status">{keyNote}</p>}
-            </div>
+              {keyNote ? <p className="mb-error" role="status">{keyNote}</p> : null}
+            </>
           ) : (
-            <p className="access-live">Live lanes unlocked for this tab. <button type="button" className="text-button" onClick={lock}>Lock bench</button></p>
+            <p className="mb-count">Live lanes unlocked for this tab. <button type="button" className="as-plain" onClick={lock}>Lock bench</button></p>
           )}
-          {!isDemo && !anyConfigured && models.length > 0 && (
-            <p className="bench-warning"><strong>No provider is patched in.</strong> Set a provider key and its model id (for example <code>ANTHROPIC_API_KEY</code> + <code>ANTHROPIC_MODEL_ID</code>) on the deployment to enable live comparison. The bench remains usable as a product surface without pretending it has a live model.</p>
-          )}
-          {error && <p className="bench-error" role="alert">{error}</p>}
-          <button className="fire-button" type="button" onClick={handleCompare} disabled={!hasVisibleText(prompt) || selected.size === 0 || loading}>
-            {loading ? "Reading channels…" : "Run comparison"}
+          {!isDemo && !anyConfigured && models.length > 0 ? (
+            <p className="mb-callout"><strong>No provider is configured.</strong> Set a provider key and its model id (for example <code>ANTHROPIC_API_KEY</code> + <code>ANTHROPIC_MODEL_ID</code>) on the deployment to enable live comparison. Until then no lane calls a model.</p>
+          ) : null}
+          {error ? <p className="mb-error" role="alert">{error}</p> : null}
+          <button className="as-button mb-run" type="button" onClick={() => void runCompare(prompt)} disabled={!canRun}>
+            {loading ? "Reading lanes…" : "Run comparison"}
           </button>
         </section>
 
-        <section className="readout" aria-labelledby="readout-heading" aria-busy={loading}>
-          <div className="bench-heading-row">
-            <div>
-              <span className="section-index">02</span>
-              <h2 id="readout-heading">Read the response lanes</h2>
-            </div>
-            <span className="bench-note" aria-live="polite">{loading ? "Reading channels…" : results.length ? results.length + " returned" : "Waiting for a transmission"}</span>
+        <section className="mb-results" aria-labelledby="readout-heading" aria-busy={loading}>
+          <div className="as-section-head">
+            <h2 className="as-section-title" id="readout-heading">Answers</h2>
+            <span className="mb-count" aria-live="polite">{loading ? "Reading lanes…" : results.length ? results.length + " returned" : "None yet"}</span>
           </div>
           {results.length === 0 ? (
-            <div className="empty-readout"><span className="empty-line" /> <p>Run a comparison to place each model’s answer on the same bench.</p></div>
-          ) : (
-            <div className="lane-grid">
-              {results.map((result) => (
-                <article className={"response-lane " + (result.error ? "has-error" : "")} key={result.modelId}>
-                  <header><span>{result.label}</span><span>{result.demo ? "demo" : result.ms !== undefined ? result.ms + "ms" : "not armed"}</span></header>
-                  <div className="lane-rule" />
-                  {result.error ? <p className="lane-error">{result.error}</p> : <p>{result.text || "No text returned."}</p>}
-                </article>
-              ))}
+            <div className="as-list as-empty mb-empty">
+              <strong>No answers yet</strong>
+              <p>Run a comparison and each selected model’s answer appears here in its own lane, with its response time.{isDemo ? " In demo mode the lanes say plainly that no model was called." : ""}</p>
+              <div className="mb-example" aria-hidden="true"><b>Example lane</b>Provider · model id, then the answer text and how long it took.</div>
+              <button type="button" className="as-plain" onClick={runSample} disabled={selected.size === 0 || loading}>Try the sample prompt</button>
             </div>
+          ) : (
+            <ul className="as-list">
+              {results.map((result) => {
+                const tag = resultTag(result);
+                return (
+                  <li className="as-row mb-answer" key={result.modelId}>
+                    <header><h3>{result.label}</h3><Pill tone={tag.tone}>{tag.text}</Pill></header>
+                    {result.error ? <p data-error="true">{result.error}</p> : <p>{result.text || "No text returned."}</p>}
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </section>
 
-        <footer className="signal-footer">Model comparison is a reading aid, not a benchmark claim. Keys and responses belong to the deployment boundary.</footer>
-      </div>
-    </main>
+        <p className="as-note">Model comparison is a reading aid, not a benchmark claim. Keys and responses stay inside this deployment.</p>
+      </main>
+      <AppFoot source={SOURCE} />
+    </div>
   );
 }
