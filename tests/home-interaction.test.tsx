@@ -184,6 +184,29 @@ describe("live bench", () => {
     expect(host.textContent).not.toContain("That key was not accepted.");
   });
 
+  it("reloads the Demo catalogue when Unlock fails while the first load is still pending", async () => {
+    let releaseFirst!: () => void;
+    let keyless = 0;
+    await mount((url, init) => {
+      const auth = (init?.headers as Record<string, string> | undefined)?.Authorization;
+      if (auth) return Promise.reject(new Error("offline"));
+      keyless += 1;
+      const demo = { ok: true, json: () => Promise.resolve({ mode: "demo", models: demoModels }) };
+      return keyless === 1 ? new Promise((resolve) => { releaseFirst = () => resolve(demo); }) : Promise.resolve(demo);
+    });
+    expect(host.textContent).toContain("Reading the model list");
+    type($<HTMLInputElement>("#access-key")!, "a-good-bench-key");
+    await act(async () => { $("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); });
+    await flush();
+    await act(async () => { releaseFirst(); });
+    await flush();
+    expect(host.textContent).not.toContain("Reading the model list");
+    expect(host.querySelectorAll(".as-check input")).toHaveLength(2);
+    expect(host.textContent).toContain("The key could not be checked right now.");
+    expect($("[role=alert]")).toBeNull();
+    expect(sessionStorage.getItem("model-bench-access-key")).toBeNull();
+  });
+
   it("says when no provider is configured and when the catalogue cannot be read", async () => {
     sessionStorage.setItem("model-bench-access-key", "stored");
     await mount(() => json({ mode: "live", models: [{ ...demoModels[0] }] }));

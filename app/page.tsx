@@ -82,7 +82,7 @@ export default function Home() {
   // resolves to "stale" so callers (unlock) change nothing at all.
   const catalogRequest = useRef(0);
 
-  const loadCatalog = useCallback(async (key: string): Promise<AccessMode | "stale"> => {
+  const loadCatalog = useCallback(async (key: string): Promise<AccessMode | "stale" | "error"> => {
     const request = ++catalogRequest.current;
     try {
       const response = await fetch("/api/compare", { headers: authHeaders(key), cache: "no-store" });
@@ -97,7 +97,7 @@ export default function Home() {
     } catch {
       if (request !== catalogRequest.current) return "stale";
       setError("The model list could not be read. Refresh to try again.");
-      return "demo" as const;
+      return "error";
     }
   }, []);
 
@@ -113,6 +113,14 @@ export default function Home() {
     const nextMode = await loadCatalog(key);
     // A newer unlock, lock or load has taken over: storing this key now would undo a Lock bench.
     if (nextMode === "stale") return;
+    if (nextMode === "error") {
+      // The unlock request superseded the first keyless load, so that load's list was dropped:
+      // load the Demo catalogue again so the bench never sticks on "Reading the model list…".
+      setKeyNote("The key could not be checked right now. The bench stays in demo mode.");
+      setError("");
+      void loadCatalog("");
+      return;
+    }
     if (nextMode === "live") {
       // Demo lanes from before the unlock must not read as live answers.
       setResults([]);
