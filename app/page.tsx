@@ -77,18 +77,24 @@ export default function Home() {
   const [keyDraft, setKeyDraft] = useState("");
   const [keyNote, setKeyNote] = useState("");
   const promptRef = useRef<HTMLTextAreaElement>(null);
+  // Only the newest catalogue request may set the mode: a slow keyless load finishing after an
+  // unlock must not flip the page back to Demo while the live key is still held.
+  const catalogRequest = useRef(0);
 
   const loadCatalog = useCallback(async (key: string) => {
+    const request = ++catalogRequest.current;
     try {
       const response = await fetch("/api/compare", { headers: authHeaders(key), cache: "no-store" });
       const data: { mode?: AccessMode; models: ModelStatus[] } = await response.json();
       const nextMode = data.mode === "live" ? "live" : "demo";
+      if (request !== catalogRequest.current) return nextMode;
       setModels(data.models);
       setMode(nextMode);
       // Demo lanes never call a provider, so every lane can be armed.
       setSelected(new Set(data.models.filter((model) => nextMode === "demo" || model.configured).map((model) => model.id)));
       return nextMode;
     } catch {
+      if (request !== catalogRequest.current) return "demo" as const;
       setError("The model list could not be read. Refresh to try again.");
       return "demo" as const;
     }
@@ -143,7 +149,8 @@ export default function Home() {
     try {
       const response = await fetch("/api/compare", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders(accessKey) },
+        // Demo runs never carry the key, so a demo-mode click can never spend provider credit.
+        headers: { "Content-Type": "application/json", ...authHeaders(isDemo ? "" : accessKey) },
         body: JSON.stringify({ prompt: text, modelIds: [...selected] }),
       });
       const data = await response.json();

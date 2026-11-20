@@ -123,6 +123,39 @@ describe("live bench", () => {
     expect(host.textContent).toContain("a live run sends your prompt to each selected model’s provider");
   });
 
+  it("never sends a held key with a demo-mode run", async () => {
+    sessionStorage.setItem("model-bench-access-key", "stale-key");
+    await mount((url, init) => (init?.method === "POST"
+      ? json({ mode: "demo", results: [] })
+      : json({ mode: "demo", models: demoModels })));
+    expect(host.textContent).toContain("Demo mode");
+    await press(button("Try the sample prompt"));
+    const post = fetchMock.mock.calls.find((call) => call[1]?.method === "POST")!;
+    expect(post[1].headers.Authorization).toBeUndefined();
+  });
+
+  it("ignores a slow keyless catalogue that lands after a successful unlock", async () => {
+    let releaseFirst!: () => void;
+    let first = true;
+    await mount((url, init) => {
+      const auth = (init?.headers as Record<string, string> | undefined)?.Authorization;
+      if (init?.method === "POST") return json({ mode: "live", results: [] });
+      if (first && !auth) {
+        first = false;
+        return new Promise((resolve) => { releaseFirst = () => resolve({ ok: true, json: () => Promise.resolve({ mode: "demo", models: demoModels }) }); });
+      }
+      return json({ mode: auth ? "live" : "demo", models: demoModels });
+    });
+    type($<HTMLInputElement>("#access-key")!, "a-good-bench-key");
+    await act(async () => { $("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); });
+    await flush();
+    expect(host.textContent).toContain("Live lanes open");
+    await act(async () => { releaseFirst(); });
+    await flush();
+    expect(host.textContent).toContain("Live lanes open");
+    expect(host.textContent).not.toContain("Demo mode.");
+  });
+
   it("says when no provider is configured and when the catalogue cannot be read", async () => {
     sessionStorage.setItem("model-bench-access-key", "stored");
     await mount(() => json({ mode: "live", models: [{ ...demoModels[0] }] }));
