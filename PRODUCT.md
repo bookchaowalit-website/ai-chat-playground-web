@@ -46,3 +46,9 @@ answered by different providers.
 
 - Stateless apart from the rate-limit counters (per instance, or Upstash/Vercel KV when configured). Prompts are sent
   only to the selected providers and are not stored.
+
+## Known limits
+
+- After "Try the sample prompt" in Demo mode the empty state (and the focused button) is replaced by the answers,
+  so keyboard focus falls back to the page body instead of moving to the Answers heading. Pre-existing; left for
+  a later UX pass (Codex review of 3dc4ba4, 2026-11-20).
