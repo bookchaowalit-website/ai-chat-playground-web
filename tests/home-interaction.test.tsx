@@ -156,6 +156,34 @@ describe("live bench", () => {
     expect(host.textContent).not.toContain("Demo mode.");
   });
 
+  it("drops a superseded unlock result so Lock bench stays locked", async () => {
+    const pending: (() => void)[] = [];
+    let keyed = 0;
+    await mount((url, init) => {
+      const auth = (init?.headers as Record<string, string> | undefined)?.Authorization;
+      if (!auth) return json({ mode: "demo", models: demoModels });
+      keyed += 1;
+      const live = { ok: true, json: () => Promise.resolve({ mode: "live", models: demoModels }) };
+      // The first keyed request hangs; later ones answer at once.
+      return keyed === 1 ? new Promise((resolve) => pending.push(() => resolve(live))) : Promise.resolve(live);
+    });
+    const submitKey = async () => {
+      type($<HTMLInputElement>("#access-key")!, "a-good-bench-key");
+      await act(async () => { $("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); });
+      await flush();
+    };
+    await submitKey();
+    await submitKey();
+    expect(host.textContent).toContain("Live lanes open");
+    await press(button("Lock bench"));
+    expect(sessionStorage.getItem("model-bench-access-key")).toBeNull();
+    await act(async () => { pending[0](); });
+    await flush();
+    expect(sessionStorage.getItem("model-bench-access-key")).toBeNull();
+    expect(host.textContent).toContain("Demo mode.");
+    expect(host.textContent).not.toContain("That key was not accepted.");
+  });
+
   it("says when no provider is configured and when the catalogue cannot be read", async () => {
     sessionStorage.setItem("model-bench-access-key", "stored");
     await mount(() => json({ mode: "live", models: [{ ...demoModels[0] }] }));

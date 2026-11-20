@@ -78,23 +78,24 @@ export default function Home() {
   const [keyNote, setKeyNote] = useState("");
   const promptRef = useRef<HTMLTextAreaElement>(null);
   // Only the newest catalogue request may set the mode: a slow keyless load finishing after an
-  // unlock must not flip the page back to Demo while the live key is still held.
+  // unlock must not flip the page back to Demo while the live key is still held. A superseded request
+  // resolves to "stale" so callers (unlock) change nothing at all.
   const catalogRequest = useRef(0);
 
-  const loadCatalog = useCallback(async (key: string) => {
+  const loadCatalog = useCallback(async (key: string): Promise<AccessMode | "stale"> => {
     const request = ++catalogRequest.current;
     try {
       const response = await fetch("/api/compare", { headers: authHeaders(key), cache: "no-store" });
       const data: { mode?: AccessMode; models: ModelStatus[] } = await response.json();
       const nextMode = data.mode === "live" ? "live" : "demo";
-      if (request !== catalogRequest.current) return nextMode;
+      if (request !== catalogRequest.current) return "stale";
       setModels(data.models);
       setMode(nextMode);
       // Demo lanes never call a provider, so every lane can be armed.
       setSelected(new Set(data.models.filter((model) => nextMode === "demo" || model.configured).map((model) => model.id)));
       return nextMode;
     } catch {
-      if (request !== catalogRequest.current) return "demo" as const;
+      if (request !== catalogRequest.current) return "stale";
       setError("The model list could not be read. Refresh to try again.");
       return "demo" as const;
     }
@@ -110,6 +111,8 @@ export default function Home() {
     const key = keyDraft.trim();
     if (!key) return;
     const nextMode = await loadCatalog(key);
+    // A newer unlock, lock or load has taken over: storing this key now would undo a Lock bench.
+    if (nextMode === "stale") return;
     if (nextMode === "live") {
       // Demo lanes from before the unlock must not read as live answers.
       setResults([]);
