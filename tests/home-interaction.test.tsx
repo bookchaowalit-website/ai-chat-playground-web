@@ -108,6 +108,21 @@ describe("live bench", () => {
     expect(host.textContent).toContain("Demo mode");
   });
 
+  it("fills the sample prompt without sending it, and says Live sends the prompt to the provider", async () => {
+    sessionStorage.setItem("model-bench-access-key", "stored");
+    await mount(() => json({ mode: "live", models: demoModels }));
+    const calls = fetchMock.mock.calls.length;
+    await press(button("Use the sample prompt"));
+    expect(fetchMock.mock.calls.length).toBe(calls);
+    expect(fetchMock.mock.calls.some((call) => call[1]?.method === "POST")).toBe(false);
+    expect($<HTMLTextAreaElement>("#prompt")!.value).toContain("calm developer tool");
+    expect(document.activeElement).toBe($("#prompt"));
+    expect($("#run-note")!.textContent).toContain("sends this prompt to the provider of each selected lane");
+    expect(button("Run comparison").getAttribute("aria-describedby")).toBe("run-note");
+    expect(host.textContent).not.toContain("Keys and responses stay inside this deployment");
+    expect(host.textContent).toContain("a live run sends your prompt to each selected model’s provider");
+  });
+
   it("says when no provider is configured and when the catalogue cannot be read", async () => {
     sessionStorage.setItem("model-bench-access-key", "stored");
     await mount(() => json({ mode: "live", models: [{ ...demoModels[0] }] }));

@@ -33,3 +33,12 @@ html, body { margin: 0; background: var(--as-bg); }
 .mb-example b { display: block; margin-bottom: 2px; color: var(--as-fg); font-size: 14px; }
 @media (max-width: 520px) { .mb-key { grid-template-columns: 1fr; } .mb-run { justify-self: stretch; } }
 @media (forced-colors: active) { .mb-callout, .mb-error, .mb-example { border: 1px solid CanvasText; } }
+/* App-local override of the shell check (app-shell.css stays byte-identical): forced colors keeps the
+   white SVG tick but replaces the blue fill, so the chosen lane looked unchosen. Draw the tick in
+   system colours instead. */
+@media (forced-colors: active) {
+  .as-check span { display: grid; place-items: center; border-color: ButtonText; }
+  .as-check input:checked + span { forced-color-adjust: none; border-color: Highlight; background: Highlight; }
+  .as-check input:checked + span::after { content: ""; width: 6px; height: 11px; margin-top: -3px; border: solid HighlightText; border-width: 0 3px 3px 0; transform: rotate(45deg); }
+  .as-check:has(input:focus-visible) span { outline-color: CanvasText; }
+}

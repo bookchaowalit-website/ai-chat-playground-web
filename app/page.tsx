@@ -161,7 +161,13 @@ export default function Home() {
     promptRef.current?.focus();
   };
 
+  // Demo lanes call no model, so the sample runs at once. Live runs spend provider credit and send
+  // the prompt out: the sample only fills the field, and Run comparison stays the one place to confirm.
   const runSample = () => {
+    if (!isDemo) {
+      pickSample();
+      return;
+    }
     setPrompt(SAMPLE_PROMPT);
     void runCompare(SAMPLE_PROMPT);
   };
@@ -248,7 +254,10 @@ export default function Home() {
             <p className="mb-callout"><strong>No provider is configured.</strong> Set a provider key and its model id (for example <code>ANTHROPIC_API_KEY</code> + <code>ANTHROPIC_MODEL_ID</code>) on the deployment to enable live comparison. Until then no lane calls a model.</p>
           ) : null}
           {error ? <p className="mb-error" role="alert">{error}</p> : null}
-          <button className="as-button mb-run" type="button" onClick={() => void runCompare(prompt)} disabled={!canRun}>
+          {isDemo ? null : (
+            <p className="mb-count" id="run-note">Run comparison sends this prompt to the provider of each selected lane and spends provider credit.</p>
+          )}
+          <button className="as-button mb-run" type="button" onClick={() => void runCompare(prompt)} disabled={!canRun} aria-describedby={isDemo ? undefined : "run-note"}>
             {loading ? "Reading lanes…" : "Run comparison"}
           </button>
         </section>
@@ -263,7 +272,7 @@ export default function Home() {
               <strong>No answers yet</strong>
               <p>Run a comparison and each selected model’s answer appears here in its own lane, with its response time.{isDemo ? " In demo mode the lanes say plainly that no model was called." : ""}</p>
               <div className="mb-example" aria-hidden="true"><b>Example lane</b>Provider · model id, then the answer text and how long it took.</div>
-              <button type="button" className="as-plain" onClick={runSample} disabled={selected.size === 0 || loading}>Try the sample prompt</button>
+              <button type="button" className="as-plain" onClick={runSample} disabled={selected.size === 0 || loading}>{isDemo ? "Try the sample prompt" : "Use the sample prompt"}</button>
             </div>
           ) : (
             <ul className="as-list">
@@ -280,7 +289,7 @@ export default function Home() {
           )}
         </section>
 
-        <p className="as-note">Model comparison is a reading aid, not a benchmark claim. Keys and responses stay inside this deployment.</p>
+        <p className="as-note">Model comparison is a reading aid, not a benchmark claim. Provider keys stay on the server; a live run sends your prompt to each selected model’s provider and shows its answer here. Demo runs call no model.</p>
       </main>
       <AppFoot source={SOURCE} />
     </div>
