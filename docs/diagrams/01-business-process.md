@@ -8,8 +8,9 @@ Last reviewed: 2026-11-28 · commit `6ad9d24`
 
 ```mermaid
 flowchart TD
-  USER["ผู้ใช้เลือก lane + พิมพ์ prompt (token เก็บใน sessionStorage)"] --> POST["POST /api/compare"]
-  POST --> VAL{"validateCompareRequest: JSON ถูก, prompt <= 4000 ตัวอักษร, เห็นตัวอักษรจริง, model id รู้จัก?"}
+  OPEN["เปิดหน้า: GET /api/compare (ส่ง token ที่เก็บใน sessionStorage ถ้ามี) → โหมด demo หรือ live + รายการ lane; ปุ่ม Unlock ตรวจ token ด้วยเส้นทางเดียวกัน; live เลือกได้เฉพาะ lane ที่ configured"] --> USER["ผู้ใช้เลือก lane + พิมพ์ prompt"]
+  USER --> POST["POST /api/compare"]
+  POST --> VAL{"validateCompareRequest: JSON ถูก, prompt <= 4000 ตัวอักษร, เห็นตัวอักษรจริง, modelIds เป็น string[] และเหลือ lane ID ที่รู้จักอย่างน้อย 1 (ตัวที่ไม่รู้จักถูกกรองทิ้ง ไม่ 400)?"}
   VAL -->|"ไม่"| E400["400 พร้อมข้อความ"]
   VAL -->|"ใช่"| MODE{"Authorization Bearer ตรง COMPARE_ACCESS_TOKEN (ยาว >= 24)?"}
   MODE -->|"ไม่ตรง หรือไม่ได้ตั้ง token"| DEMO["200 mode demo: ข้อความตัวอย่างที่ติดป้าย, ไม่เรียก provider"]
@@ -35,6 +36,7 @@ Sources: `app/api/compare/route.ts`, `lib/compareHandler.ts`, `lib/access.ts`, `
 
 - counter ใช้ Upstash/Vercel KV เมื่อมี env ที่เกี่ยวข้อง ไม่เช่นนั้นเป็น memory ต่อ instance (best-effort); ใน production ตั้ง KV แล้วหรือไม่ [ต้องยืนยัน]
 - production มี provider key, model id และ `COMPARE_ACCESS_TOKEN` ตั้งไว้หรือไม่ [ต้องยืนยัน] (`PRODUCT.md`: ผู้เยี่ยมชมเห็น demo)
+- CI (`ci.yml`) ไม่มีขั้น deploy; deploy เป็นอีกเส้นทางหนึ่ง
 - deploy: Vercel project deploy ด้วย CLI เท่านั้น เพราะ Git link ชี้ repo ชื่อเก่า push `main` จึงไม่ deploy (`PRODUCT.md`, owner action D9) [ต้องยืนยัน: สถานะล่าสุด]
 - error ฝั่งเว็บและ server ไป Sentry เมื่อตั้ง `NEXT_PUBLIC_SENTRY_DSN` (ตั้งแล้วตาม `PRODUCT.md`)
 
@@ -58,7 +60,7 @@ Sources: `docs/UPGRADE-PLAN.md`, `PRODUCT.md`
 
 | ID | As-Is → To-Be | Status | Owner | Evidence |
 |---|---|---|---|---|
-| G1 | ไม่ยืนยันว่า production ตั้ง `COMPARE_ACCESS_TOKEN` และ `*_MODEL_ID` → ตั้งใน Vercel เพื่อให้ live lane ทำงาน | decide | owner | `docs/UPGRADE-PLAN.md` §P0; `PRODUCT.md` |
+| G1 | ไม่ยืนยันว่า production ตั้ง `COMPARE_ACCESS_TOKEN`, `*_MODEL_ID` และ provider API key → ตั้งใน Vercel พร้อม provider API key ของแต่ละ lane ที่ต้องการเปิด (lane ที่ไม่มี key ยังเป็น `missing-key` และไม่เรียกโมเดล) เพื่อให้ live lane ทำงาน | decide | owner | `docs/UPGRADE-PLAN.md` §P0; `PRODUCT.md` |
 | G2 | counter เป็น memory ต่อ instance เมื่อไม่มี KV → provision Upstash/Vercel KV และตั้ง `COMPARE_DAILY_REQUEST_CAP` | todo | owner | `docs/UPGRADE-PLAN.md` §P1; `lib/rateLimit.ts` |
 | G3 | คำตอบรอทุก lane แล้วค่อยแสดง (ไม่ stream) → stream ต่อ lane | todo | claude | `docs/UPGRADE-PLAN.md` §P1; `app/api/compare/route.ts` |
 | G4 | ยังไม่ยืนยัน canonical domain และ `NEXT_PUBLIC_SITE_URL` → ตั้งค่า | todo | owner | `docs/UPGRADE-PLAN.md` §P1 |
