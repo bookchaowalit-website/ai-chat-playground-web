@@ -16,5 +16,8 @@ describe("social card", () => {
   it("puts the card on the root metadata that every page inherits", () => {
     expect(metadata.openGraph).toMatchObject(SOCIAL_CARD.openGraph);
     expect(metadata.twitter).toMatchObject(SOCIAL_CARD.twitter);
+    // Pages fall back to their own Open Graph title for the X card only when the root sets no twitter title.
+    expect(metadata.twitter).not.toHaveProperty("title");
+    expect(metadata.twitter).not.toHaveProperty("description");
   });
 });

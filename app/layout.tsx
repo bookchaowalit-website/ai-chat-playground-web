@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   alternates: { canonical: "/" },
   openGraph: { type: "website", url: "/", siteName: "Bookchaowalit", title, description, ...SOCIAL_CARD.openGraph },
-  twitter: { title, creator: "@bookchaowalit", ...SOCIAL_CARD.twitter },
+  twitter: { creator: "@bookchaowalit", ...SOCIAL_CARD.twitter },
   robots: { index: true, follow: true },
 };
 
