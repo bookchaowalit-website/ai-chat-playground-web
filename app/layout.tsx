@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
-import { SITE_URL } from "@/lib/site";
+import { SITE_URL, SOCIAL_CARD } from "@/lib/site";
 
 // The font variable sits on <html>: the App shell tokens live on :root and read it from there.
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -16,8 +16,8 @@ export const metadata: Metadata = {
   creator: "Bookchaowalit",
   metadataBase: new URL(SITE_URL),
   alternates: { canonical: "/" },
-  openGraph: { type: "website", url: "/", siteName: "Bookchaowalit", title, description },
-  twitter: { card: "summary", title, creator: "@bookchaowalit" },
+  openGraph: { type: "website", url: "/", siteName: "Bookchaowalit", title, description, ...SOCIAL_CARD.openGraph },
+  twitter: { title, creator: "@bookchaowalit", ...SOCIAL_CARD.twitter },
   robots: { index: true, follow: true },
 };
 
